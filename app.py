@@ -1,17 +1,15 @@
 """
 Tytuł pracy inżynierskiej: Wirtualny asystent trenera, projekt aplikacji do symulacji parametrów życiowych sportowca
-Autor: [Twoje Imię i Nazwisko]
+Autor: Wiktor Kubacki
 Uczelnia: WSB Merito
-Opis: Moduł symulacji telemetrii wysiłkowej oparty na modelach fizjologicznych Karvonena, Edwardsa oraz Banistera (TRIMP).
+Opis: Moduł symulacji telemetrii wysiłkowej oparty na wielu modelach fizjologicznych
 """
 
 import logging
-import os
 import random
 import time
-from typing import Dict, List, Tuple, Optional
+from typing import Tuple
 
-import pandas as pd
 import plotly.graph_objects as go
 import streamlit as st
 
@@ -239,7 +237,7 @@ if st.sidebar.button("Nowy trening (Reset)", use_container_width=True):
     if 'sportowiec' in st.session_state: 
         del st.session_state.sportowiec
 
-# --- INSTANCJONONWANIE OBIEKTÓW DLA PODGLĄDU NA ŻYWO ---
+# --- INSTANCJONONWANIE OBIEKTÓW DLA PODGLÁDU NA ŻYWO ---
 if 'sportowiec' not in st.session_state:
     st.session_state.sportowiec = WirtualnySportowiec(wiek, waga, wzrost, plec, hr_rest)
 if 'asystent' not in st.session_state:
@@ -278,7 +276,7 @@ if st.session_state.live and not st.session_state.pauza:
 elif st.session_state.pauza:
     st.warning("Sesja wstrzymana (Tryb Aktywnego Schładzania). Kliknij ponownie 'PAUZA', aby wznowić obciążenie.")
 elif not st.session_state.live and not st.session_state.sesja_zakonczona:
-    st.info("ℹ️ **Tryb podglądu stref tętna:** Modyfikuj parametry w panelu bocznym, aby obserwować dynamikę zmian stref Karvonena oraz tętna maksymalného. Kliknij **URUCHOM SESJĘ**, aby rozpocząć rejestrację telemetrii.")
+    st.info("ℹ️ **Tryb podglądu stref tętna:** Modyfikuj parametry w panelu bocznym, aby obserwować dynamikę zmian stref Karvonena oraz tętna maksymalnego. Kliknij **URUCHOM SESJĘ**, aby rozpocząć rejestrację telemetrii.")
 
 # Symulacja kroku czasowego
 if st.session_state.live:
@@ -391,100 +389,89 @@ fig.update_layout(
 
 st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
-# --- ARCHIWIZACJA I EKSPORT RAPORTU ---
+# --- ARCHIWIZACJA I POBIERANIE RAPORTU HTML ---
 if st.session_state.sesja_zakonczona:
     st.write("---")
-    st.subheader("Eksport i Archiwizacja Raportu Treningowego")
+    st.subheader("Eksport i Pobieranie Raportu Treningowego")
 
-    with st.form(key="zapis_form"):
-        col_inp, col_btn = st.columns([3, 1])
-        with col_inp:
-            nazwa_treningu = st.text_input("Wprowadź nazwę raportu:", value="Sesja_Treningowa_Inzynierska")
-        with col_btn:
-            st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-            zapisz_kliknieto = st.form_submit_button(" ZAPISZ RAPORT HTML", use_container_width=True)
+    nazwa_treningu = st.text_input("Wprowadź nazwę pliku raportu:", value="Raport_Treningowy")
+    
+    czysta_nazwa = nazwa_treningu.strip().replace(" ", "_")
+    if not czysta_nazwa: 
+        czysta_nazwa = "Raport_Treningowy"
+    
+    plik_nazwa = f"{czysta_nazwa}.html"
 
-        if zapisz_kliknieto:
-            czysta_nazwa = nazwa_treningu.strip().replace(" ", "_")
-            if not czysta_nazwa: 
-                czysta_nazwa = "Raport_Treningowy"
+    wykres_html = fig.to_html(full_html=False, include_plotlyjs='cdn')
 
-            baza_nazwy = czysta_nazwa
-            sciezka = os.path.join(os.getcwd(), f"{czysta_nazwa}.html")
-            licznik = 2
-
-            while os.path.exists(sciezka):
-                czysta_nazwa = f"{baza_nazwy}_{licznik}"
-                sciezka = os.path.join(os.getcwd(), f"{czysta_nazwa}.html")
-                licznik += 1
-
-            wykres_html = fig.to_html(full_html=False, include_plotlyjs='cdn')
-
-            raport_html_content = f"""
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="utf-8">
-                <title>Raport Telemetryczny - {czysta_nazwa}</title>
-                <style>
-                    body {{ font-family: 'Segoe UI', Arial, sans-serif; margin: 40px; background-color: #0e1117; color: #ffffff; }}
-                    .container {{ max-width: 1200px; margin: 0 auto; }}
-                    .header {{ border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; }}
-                    .header h1 {{ margin: 0; color: #ff4b4b; font-size: 28px; }}
-                    .header p {{ color: #888; margin: 5px 0 0 0; }}
-                    .stats-grid {{ display: grid; grid-template-columns: repeat(6, 1fr); gap: 15px; margin-bottom: 40px; }}
-                    .stat-card {{ background-color: #1a1c23; border: 1px solid #333; padding: 15px; border-radius: 8px; text-align: center; }}
-                    .stat-label {{ font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px; }}
-                    .stat-value {{ font-size: 24px; font-weight: bold; margin: 0; }}
-                    .chart-container {{ background-color: #1a1c23; border: 1px solid #333; border-radius: 8px; padding: 20px; }}
-                    .chart-title {{ font-size: 16px; margin-top: 0; margin-bottom: 15px; color: #ccc; }}
-                </style>
-            </head>
-            <body>
-                <div class="container">
-                    <div class="header">
-                        <h1>Raport z Telemetrii Wysiłkowej: {czysta_nazwa}</h1>
-                        <p>Wygenerowano automatycznie przez System Monitorowania Obciążeń (Model Karvonena & Edwardsa)</p>
-                    </div>
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <div class="stat-label">Czas Sesji</div>
-                            <div class="stat-value">{s.czas_treningu_s // 60}:{s.czas_treningu_s % 60:02d}</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Tętno AVG</div>
-                            <div class="stat-value">{avg_hr} BPM</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Tętno MAX</div>
-                            <div class="stat-value">{max_hr_achieved} BPM</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Spalone Kalorie</div>
-                            <div class="stat-value">{int(s.spalone_kcal)} kcal</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Obciążenie TRIMP</div>
-                            <div class="stat-value">{trimp}</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-label">Wskaźnik BMI</div>
-                            <div class="Stat-value">{s.bmi:.1f}</div>
-                        </div>
-                    </div>
-                    <div class="chart-container">
-                        <div class="chart-title">Zapis telemetryczny krzywej tętna (Interaktywny)</div>
-                        {wykres_html}
-                    </div>
+    raport_html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <title>Raport Telemetryczny - {czysta_nazwa}</title>
+        <style>
+            body {{ font-family: 'Segoe UI', Arial, sans-serif; margin: 40px; background-color: #0e1117; color: #ffffff; }}
+            .container {{ max-width: 1200px; margin: 0 auto; }}
+            .header {{ border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; }}
+            .header h1 {{ margin: 0; color: #ff4b4b; font-size: 28px; }}
+            .header p {{ color: #888; margin: 5px 0 0 0; }}
+            .stats-grid {{ display: grid; grid-template-columns: repeat(6, 1fr); gap: 15px; margin-bottom: 40px; }}
+            .stat-card {{ background-color: #1a1c23; border: 1px solid #333; padding: 15px; border-radius: 8px; text-align: center; }}
+            .stat-label {{ font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px; }}
+            .stat-value {{ font-size: 24px; font-weight: bold; margin: 0; }}
+            .chart-container {{ background-color: #1a1c23; border: 1px solid #333; border-radius: 8px; padding: 20px; }}
+            .chart-title {{ font-size: 16px; margin-top: 0; margin-bottom: 15px; color: #ccc; }}
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <div class="header">
+                <h1>Raport z Telemetrii Wysiłkowej: {czysta_nazwa}</h1>
+                <p>Wygenerowano automatycznie przez System Monitorowania Obciążeń (Model Karvonena & Edwardsa)</p>
+            </div>
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-label">Czas Sesji</div>
+                    <div class="stat-value">{s.czas_treningu_s // 60}:{s.czas_treningu_s % 60:02d}</div>
                 </div>
-            </body>
-            </html>
-            """
+                <div class="stat-card">
+                    <div class="stat-label">Tętno AVG</div>
+                    <div class="stat-value">{avg_hr} BPM</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Tętno MAX</div>
+                    <div class="stat-value">{max_hr_achieved} BPM</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Spalone Kalorie</div>
+                    <div class="stat-value">{int(s.spalone_kcal)} kcal</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Obciążenie TRIMP</div>
+                    <div class="stat-value">{trimp}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Wskaźnik BMI</div>
+                    <div class="stat-value">{s.bmi:.1f}</div>
+                </div>
+            </div>
+            <div class="chart-container">
+                <div class="chart-title">Zapis telemetryczny krzywej tętna (Interaktywny)</div>
+                {wykres_html}
+            </div>
+        </div>
+    </body>
+    </html>
+    """
 
-            with open(sciezka, "w", encoding="utf-8") as plik:
-                plik.write(raport_html_content)
-
-            st.success(f"Pomyślnie wygenerowano i zapisano raport w pliku **{czysta_nazwa}.html**.")
+    st.download_button(
+        label="📥 POBIERZ RAPORT HTML",
+        data=raport_html_content,
+        file_name=plik_nazwa,
+        mime="text/html",
+        use_container_width=True
+    )
 
 if st.session_state.live:
     time.sleep(1)
