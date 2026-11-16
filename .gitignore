@@ -1,0 +1,12 @@
+# Środowiska wirtualne i cache
+__pycache__/
+*.pyc
+.venv/
+env/
+
+# Ustawienia edytorów
+.idea/
+.vscode/
+
+# Pliki systemowe
+.DS_Store
