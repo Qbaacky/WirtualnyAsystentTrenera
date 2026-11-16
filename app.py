@@ -394,84 +394,95 @@ if st.session_state.sesja_zakonczona:
     st.write("---")
     st.subheader("Eksport i Pobieranie Raportu Treningowego")
 
-    nazwa_treningu = st.text_input("Wprowadź nazwę pliku raportu:", value="Raport_Treningowy")
-    
-    czysta_nazwa = nazwa_treningu.strip().replace(" ", "_")
-    if not czysta_nazwa: 
-        czysta_nazwa = "Raport_Treningowy"
-    
-    plik_nazwa = f"{czysta_nazwa}.html"
+    # Użycie formularza (st.form) wymusza zatwierdzenie wpisanej nazwy przed wygenerowaniem pliku
+    with st.form(key="formularz_pobierania"):
+        nazwa_treningu = st.text_input("Wprowadź nazwę pliku raportu:", value="Raport_Treningowy")
+        zatwierdzono = st.form_submit_button("📁 PRZYGOTUJ RAPORT DO POBRANIA", use_container_width=True)
 
-    wykres_html = fig.to_html(full_html=False, include_plotlyjs='cdn')
+    if zatwierdzono:
+        czysta_nazwa = nazwa_treningu.strip().replace(" ", "_")
+        if not czysta_nazwa: 
+            czysta_nazwa = "Raport_Treningowy"
+        
+        plik_nazwa = f"{czysta_nazwa}.html"
 
-    raport_html_content = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <meta charset="utf-8">
-        <title>Raport Telemetryczny - {czysta_nazwa}</title>
-        <style>
-            body {{ font-family: 'Segoe UI', Arial, sans-serif; margin: 40px; background-color: #0e1117; color: #ffffff; }}
-            .container {{ max-width: 1200px; margin: 0 auto; }}
-            .header {{ border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; }}
-            .header h1 {{ margin: 0; color: #ff4b4b; font-size: 28px; }}
-            .header p {{ color: #888; margin: 5px 0 0 0; }}
-            .stats-grid {{ display: grid; grid-template-columns: repeat(6, 1fr); gap: 15px; margin-bottom: 40px; }}
-            .stat-card {{ background-color: #1a1c23; border: 1px solid #333; padding: 15px; border-radius: 8px; text-align: center; }}
-            .stat-label {{ font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px; }}
-            .stat-value {{ font-size: 24px; font-weight: bold; margin: 0; }}
-            .chart-container {{ background-color: #1a1c23; border: 1px solid #333; border-radius: 8px; padding: 20px; }}
-            .chart-title {{ font-size: 16px; margin-top: 0; margin-bottom: 15px; color: #ccc; }}
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <div class="header">
-                <h1>Raport z Telemetrii Wysiłkowej: {czysta_nazwa}</h1>
-                <p>Wygenerowano automatycznie przez System Monitorowania Obciążeń (Model Karvonena & Edwardsa)</p>
-            </div>
-            <div class="stats-grid">
-                <div class="stat-card">
-                    <div class="stat-label">Czas Sesji</div>
-                    <div class="stat-value">{s.czas_treningu_s // 60}:{s.czas_treningu_s % 60:02d}</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Tętno AVG</div>
-                    <div class="stat-value">{avg_hr} BPM</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Tętno MAX</div>
-                    <div class="stat-value">{max_hr_achieved} BPM</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Spalone Kalorie</div>
-                    <div class="stat-value">{int(s.spalone_kcal)} kcal</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Obciążenie TRIMP</div>
-                    <div class="stat-value">{trimp}</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-label">Wskaźnik BMI</div>
-                    <div class="stat-value">{s.bmi:.1f}</div>
-                </div>
-            </div>
-            <div class="chart-container">
-                <div class="chart-title">Zapis telemetryczny krzywej tętna (Interaktywny)</div>
-                {wykres_html}
-            </div>
-        </div>
-    </body>
-    </html>
-    """
+        wykres_html = fig.to_html(full_html=False, include_plotlyjs='cdn')
 
-    st.download_button(
-        label="📥 POBIERZ RAPORT HTML",
-        data=raport_html_content,
-        file_name=plik_nazwa,
-        mime="text/html",
-        use_container_width=True
-    )
+        raport_html_content = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <title>Raport Telemetryczny - {czysta_nazwa}</title>
+            <style>
+                body {{ font-family: 'Segoe UI', Arial, sans-serif; margin: 40px; background-color: #0e1117; color: #ffffff; }}
+                .container {{ max-width: 1200px; margin: 0 auto; }}
+                .header {{ border-bottom: 2px solid #333; padding-bottom: 20px; margin-bottom: 30px; }}
+                .header h1 {{ margin: 0; color: #ff4b4b; font-size: 28px; }}
+                .header p {{ color: #888; margin: 5px 0 0 0; }}
+                .stats-grid {{ display: grid; grid-template-columns: repeat(6, 1fr); gap: 15px; margin-bottom: 40px; }}
+                .stat-card {{ background-color: #1a1c23; border: 1px solid #333; padding: 15px; border-radius: 8px; text-align: center; }}
+                .stat-label {{ font-size: 11px; color: #888; text-transform: uppercase; margin-bottom: 8px; letter-spacing: 0.5px; }}
+                .stat-value {{ font-size: 24px; font-weight: bold; margin: 0; }}
+                .chart-container {{ background-color: #1a1c23; border: 1px solid #333; border-radius: 8px; padding: 20px; }}
+                .chart-title {{ font-size: 16px; margin-top: 0; margin-bottom: 15px; color: #ccc; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>Raport z Telemetrii Wysiłkowej: {czysta_nazwa}</h1>
+                    <p>Wygenerowano automatycznie przez System Monitorowania Obciążeń (Model Karvonena & Edwardsa)</p>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-label">Czas Sesji</div>
+                        <div class="stat-value">{s.czas_treningu_s // 60}:{s.czas_treningu_s % 60:02d}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Tętno AVG</div>
+                        <div class="stat-value">{avg_hr} BPM</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Tętno MAX</div>
+                        <div class="stat-value">{max_hr_achieved} BPM</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Spalone Kalorie</div>
+                        <div class="stat-value">{int(s.spalone_kcal)} kcal</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Obciążenie TRIMP</div>
+                        <div class="stat-value">{trimp}</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-label">Wskaźnik BMI</div>
+                        <div class="stat-value">{s.bmi:.1f}</div>
+                    </div>
+                </div>
+                <div class="chart-container">
+                    <div class="chart-title">Zapis telemetryczny krzywej tętna (Interaktywny)</div>
+                    {wykres_html}
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+
+        # Zapisanie nazwy i zawartości w sesji, aby przycisk pobierania był natychmiast widoczny
+        st.session_state.pobierz_dane = raport_html_content
+        st.session_state.pobierz_nazwa = plik_nazwa
+
+    # Jeśli dane raportu zostały zatwierdzone w formularzu, pokaż przycisk pobierania
+    if 'pobierz_dane' in st.session_state and st.session_state.pobierz_dane:
+        st.success(f"Raport gotowy do pobrania: **{st.session_state.pobierz_nazwa}**")
+        st.download_button(
+            label="📥 KLIKNIJ, ABY POBRAĆ PLIK HTML",
+            data=st.session_state.pobierz_dane,
+            file_name=st.session_state.pobierz_nazwa,
+            mime="text/html",
+            use_container_width=True
+        )
 
 if st.session_state.live:
     time.sleep(1)
