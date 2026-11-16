@@ -1,0 +1,2 @@
+# WirtualnyAsystentTrenera
+PRACA_INZYNIERSKA
