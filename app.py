@@ -5,20 +5,53 @@ Uczelnia: WSB Merito
 Opis: Moduł symulacji telemetrii wysiłkowej oparty na wielu modelach fizjologicznych
 """
 
-import logging
 import random
 import time
 from typing import Tuple
-
 import plotly.graph_objects as go
 import streamlit as st
+from sklearn.tree import DecisionTreeClassifier
 
-# --- KONFIGURACJA LOGOWANIA (Standard Inżynierski) ---
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
-)
-logger = logging.getLogger("VirtualAthleteEngine")
+
+# --- TRENING MODELU UCZENIA MASZYNOWEGO (SCIKIT-LEARN) ---
+@st.cache_resource
+def stworz_i_wytrenuj_model_ai() -> DecisionTreeClassifier:
+    """
+    Generuje przykładowe dane treningowe i uczy model Drzewa Decyzyjnego
+    klasyfikowania stanu sportowca na trzy komendy: ZWOLNIJ, PRZYSPIESZ, UTRZYMAJ TEMPO.
+    """
+    X_dane = []      # Lista na parametry wejściowe: [procent_HRR, BMI, czas_sesji]
+    y_decyzje = []   # Lista na właściwe decyzje trenera (etykiety klas)
+
+    # Generujemy 1500 przykładowych sytuacji treningowych do nauki modelu
+    for _ in range(1500):
+        losowe_hrr = random.uniform(0.30, 1.00)   # Obciążenie tętna od 30% do 100%
+        losowe_bmi = random.uniform(18.0, 35.0)   # Losowe BMI
+        losowy_czas = random.randint(5, 120)      # Losowy planowany czas (min)
+
+        # Wyznaczenie prawidłowych progów dla wylosowanego przykładu
+        if losowe_bmi >= 28.0:
+            dolny_prog, gorny_prog = 0.60, 0.80
+        elif losowy_czas <= 20:
+            dolny_prog, gorny_prog = 0.75, 0.90
+        else:
+            dolny_prog, gorny_prog = 0.60, 0.75
+
+        # Przypisanie poprawnej decyzji (klasy) do wylosowanych parametrów
+        if losowe_hrr > gorny_prog:
+            decyzja = "ZWOLNIJ"
+        elif losowe_hrr < dolny_prog:
+            decyzja = "PRZYSPIESZ"
+        else:
+            decyzja = "UTRZYMAJ TEMPO"
+
+        X_dane.append([losowe_hrr, losowe_bmi, losowy_czas])
+        y_decyzje.append(decyzja)
+
+    # Utworzenie i wytrenowanie klasyfikatora z biblioteki scikit-learn
+    model = DecisionTreeClassifier(max_depth=5, random_state=42)
+    model.fit(X_dane, y_decyzje)
+    return model
 
 
 class WirtualnySportowiec:
@@ -41,8 +74,6 @@ class WirtualnySportowiec:
         self.dynamika_spadku: float = random.uniform(0.7, 1.3) * (2.0 - self.kondycja)
         self.niestabilnosc_tempa: float = random.uniform(0.4, 1.8)
         self.trend_szumu: float = random.uniform(-1.0, 1.0)
-        
-        logger.info(f"Zainicjalizowano model sportowca: MaxHR={self.max_tetno}, HRR={self.hrr}, BMI={self.bmi:.2f}")
 
     def aktualizuj_parametry(self, wiek: int, waga: float, wzrost: float, plec: str, tetno_spoczynkowe: float) -> None:
         """Dynamiczna aktualizacja parametrów biometrycznych zawodnika w locie."""
@@ -59,7 +90,7 @@ class WirtualnySportowiec:
             self.max_tetno = 210 - (0.5 * wiek) - (0.11 * waga)
 
         self.max_tetno = round(self.max_tetno)
-        
+
         # Obliczenie rezerwy tętna (Heart Rate Reserve - HRR) wg formuły Karvonena
         self.hrr = self.max_tetno - self.tetno_spoczynkowe
 
@@ -96,7 +127,7 @@ class WirtualnySportowiec:
             wspolczynnik_adaptacji = 0.008 * self.dynamika_spadku
 
         mnoznik_zmeczenia = 1.0 + (self.kondycja * 0.5)
-        if self.bmi > 25.0: 
+        if self.bmi > 25.0:
             mnoznik_zmeczenia += 0.3
 
         if poziom_wysilku >= 3 and not tryb_pauzy:
@@ -116,9 +147,9 @@ class WirtualnySportowiec:
             self.aktualne_tetno += przyrost + self.trend_szumu + wplyw_dryfu
 
         # Ograniczenia bezpieczeństwa fizjologicznego
-        if self.aktualne_tetno > self.max_tetno: 
+        if self.aktualne_tetno > self.max_tetno:
             self.aktualne_tetno = self.max_tetno
-        if self.aktualne_tetno < self.tetno_spoczynkowe: 
+        if self.aktualne_tetno < self.tetno_spoczynkowe:
             self.aktualne_tetno = self.tetno_spoczynkowe
 
         hr = self.aktualne_tetno
@@ -133,11 +164,12 @@ class WirtualnySportowiec:
 
 class AsystentAI:
     """
-    Moduł decyzyjny (Ekspert systemowy) monitorujący strefy wysiłkowe
-    i generujący rekomendacje interwencyjne dla trenera.
+    Moduł decyzyjny wykorzystujący model uczenia maszynowego (scikit-learn)
+    do klasyfikacji danych telemetrycznych i generowania decyzji treningowych.
     """
 
     def __init__(self, target_duration_min: int, bmi: float, hrr: float, tetno_spoczynkowe: float) -> None:
+        self.model_ml = stworz_i_wytrenuj_model_ai()
         self.aktualizuj_parametry(target_duration_min, bmi, hrr, tetno_spoczynkowe)
 
     def aktualizuj_parametry(self, target_duration_min: int, bmi: float, hrr: float, tetno_spoczynkowe: float) -> None:
@@ -153,28 +185,29 @@ class AsystentAI:
         elapsed_min = elapsed_s / 60.0
         progress = (elapsed_min / self.target_duration) * 100
 
-        if self.bmi >= 28.0:
-            low_target = (self.hrr * 0.60) + self.tetno_spoczynkowe
-            high_target = (self.hrr * 0.80) + self.tetno_spoczynkowe
-            msg_prefix = "OCHRONA STAWÓW (Wysokie BMI): "
-        elif self.target_duration <= 20:
-            low_target = (self.hrr * 0.75) + self.tetno_spoczynkowe
-            high_target = (self.hrr * 0.90) + self.tetno_spoczynkowe
-            msg_prefix = "SESJA KRÓTKA (HIIT): "
-        else:
-            low_target = (self.hrr * 0.60) + self.tetno_spoczynkowe
-            high_target = (self.hrr * 0.75) + self.tetno_spoczynkowe
-            msg_prefix = "SESJA WYTRZYMAŁOŚCIOWA: "
-
         if progress > 100:
             return "SESJA ZAKOŃCZONA. Utrzymaj powolne tempo do schłodzenia organizmu.", "Info"
 
-        if hr > high_target:
-            return f"{msg_prefix}Zbyt wysokie tętno. Komenda: ZWOLNIJ.", "Error"
-        elif hr < low_target:
-            return f"{msg_prefix}Tętno poniżej celu treningowego. Komenda: PRZYSPIESZ.", "Warning"
+        if self.bmi >= 28.0:
+            msg_prefix = "OCHRONA STAWÓW (Wysokie BMI): "
+        elif self.target_duration <= 20:
+            msg_prefix = "SESJA KRÓTKA (HIIT): "
         else:
-            return f"{msg_prefix}Parametry optymalne w wyznaczonej strefie wysiłkowej. Komenda: UTRZYMAJ TEMPO.", "Success"
+            msg_prefix = "SESJA WYTRZYMAŁOŚCIOWA: "
+
+        # Obliczenie aktualnego obciążenia serca (% rezerwy tętna HRR)
+        aktualne_hrr = (hr - self.tetno_spoczynkowe) / self.hrr if self.hrr > 0 else 0.0
+
+        # Klasyfikacja aktualnych parametrów przez model scikit-learn
+        biezace_dane = [[aktualne_hrr, self.bmi, self.target_duration]]
+        decyzja_ai = self.model_ml.predict(biezace_dane)[0]
+
+        if decyzja_ai == "ZWOLNIJ":
+            return f"{msg_prefix}Zbyt wysokie tętno. Decyzja modelu ML: ZWOLNIJ.", "Error"
+        elif decyzja_ai == "PRZYSPIESZ":
+            return f"{msg_prefix}Tętno poniżej celu treningowego. Decyzja modelu ML: PRZYSPIESZ.", "Warning"
+        else:
+            return f"{msg_prefix}Parametry optymalne w wyznaczonej strefie wysiłkowej. Decyzja modelu ML: UTRZYMAJ TEMPO.", "Success"
 
 
 # --- KONFIGURACJA GŁÓWNA INTERFEJSU STREAMLIT ---
@@ -211,7 +244,6 @@ if st.sidebar.button("URUCHOM SESJĘ", use_container_width=True):
     st.session_state.sportowiec = WirtualnySportowiec(wiek, waga, wzrost, plec, hr_rest)
     s_obj = st.session_state.sportowiec
     st.session_state.asystent = AsystentAI(plan_min, s_obj.bmi, s_obj.hrr, s_obj.tetno_spoczynkowe)
-    logger.info("Rozpoczęto nową sesję treningową.")
 
 col_p, col_s = st.sidebar.columns(2)
 
@@ -225,7 +257,6 @@ if col_s.button("STOP", use_container_width=True):
     st.session_state.live = False
     st.session_state.pauza = False
     st.session_state.sesja_zakonczona = True
-    logger.info("Zatrzymano i zakończono sesję treningową.")
 
 if st.sidebar.button("Nowy trening (Reset)", use_container_width=True):
     st.session_state.live = False
@@ -234,10 +265,10 @@ if st.sidebar.button("Nowy trening (Reset)", use_container_width=True):
     st.session_state.poziom_wysilku = 0
     st.session_state.hist_hr = []
     st.session_state.hist_t = []
-    if 'sportowiec' in st.session_state: 
+    if 'sportowiec' in st.session_state:
         del st.session_state.sportowiec
 
-# --- INSTANCJONONWANIE OBIEKTÓW DLA PODGLÁDU NA ŻYWO ---
+# --- INSTANCJONOWANIE OBIEKTÓW DLA PODGLĄDU NA ŻYWO ---
 if 'sportowiec' not in st.session_state:
     st.session_state.sportowiec = WirtualnySportowiec(wiek, waga, wzrost, plec, hr_rest)
 if 'asystent' not in st.session_state:
@@ -394,16 +425,15 @@ if st.session_state.sesja_zakonczona:
     st.write("---")
     st.subheader("Eksport i Pobieranie Raportu Treningowego")
 
-    # Użycie formularza (st.form) wymusza zatwierdzenie wpisanej nazwy przed wygenerowaniem pliku
     with st.form(key="formularz_pobierania"):
         nazwa_treningu = st.text_input("Wprowadź nazwę pliku raportu:", value="Raport_Treningowy")
         zatwierdzono = st.form_submit_button("📁 PRZYGOTUJ RAPORT DO POBRANIA", use_container_width=True)
 
     if zatwierdzono:
         czysta_nazwa = nazwa_treningu.strip().replace(" ", "_")
-        if not czysta_nazwa: 
+        if not czysta_nazwa:
             czysta_nazwa = "Raport_Treningowy"
-        
+
         plik_nazwa = f"{czysta_nazwa}.html"
 
         wykres_html = fig.to_html(full_html=False, include_plotlyjs='cdn')
@@ -469,11 +499,9 @@ if st.session_state.sesja_zakonczona:
         </html>
         """
 
-        # Zapisanie nazwy i zawartości w sesji, aby przycisk pobierania był natychmiast widoczny
         st.session_state.pobierz_dane = raport_html_content
         st.session_state.pobierz_nazwa = plik_nazwa
 
-    # Jeśli dane raportu zostały zatwierdzone w formularzu, pokaż przycisk pobierania
     if 'pobierz_dane' in st.session_state and st.session_state.pobierz_dane:
         st.success(f"Raport gotowy do pobrania: **{st.session_state.pobierz_nazwa}**")
         st.download_button(
