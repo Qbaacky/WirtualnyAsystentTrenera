@@ -13,21 +13,21 @@ import streamlit as st
 from sklearn.tree import DecisionTreeClassifier
 
 
-# --- TRENING MODELU UCZENIA MASZYNOWEGO (SCIKIT-LEARN) ---
+# Trening modelu uczenia maszynowego SCIKIT-LEARN
 @st.cache_resource
 def stworz_i_wytrenuj_model_ai() -> DecisionTreeClassifier:
     """
     Generuje przykładowe dane treningowe i uczy model Drzewa Decyzyjnego
     klasyfikowania stanu sportowca na trzy komendy: ZWOLNIJ, PRZYSPIESZ, UTRZYMAJ TEMPO.
     """
-    X_dane = []      # Lista na parametry wejściowe: [procent_HRR, BMI, czas_sesji]
-    y_decyzje = []   # Lista na właściwe decyzje trenera (etykiety klas)
+    X_dane = []      # Lista na parametry wejściowe: procent_HRR + BMI + czas_sesji
+    y_decyzje = []   # Lista na właściwe decyzje trenera - etykiety klas
 
-    # Generujemy 1500 przykładowych sytuacji treningowych do nauki modelu
+    # Generowanie 1500 przykładowych sytuacji treningowych do nauki modelu
     for _ in range(1500):
         losowe_hrr = random.uniform(0.30, 1.00)   # Obciążenie tętna od 30% do 100%
         losowe_bmi = random.uniform(18.0, 35.0)   # Losowe BMI
-        losowy_czas = random.randint(5, 120)      # Losowy planowany czas (min)
+        losowy_czas = random.randint(5, 120)      # Losowy planowany czas w min
 
         # Wyznaczenie prawidłowych progów dla wylosowanego przykładu
         if losowe_bmi >= 28.0:
@@ -48,7 +48,7 @@ def stworz_i_wytrenuj_model_ai() -> DecisionTreeClassifier:
         X_dane.append([losowe_hrr, losowe_bmi, losowy_czas])
         y_decyzje.append(decyzja)
 
-    # Utworzenie i wytrenowanie klasyfikatora z biblioteki scikit-learn
+    # Utworzenie + wytrenowanie klasyfikatora z scikit-learn
     model = DecisionTreeClassifier(max_depth=5, random_state=42)
     model.fit(X_dane, y_decyzje)
     return model
@@ -83,7 +83,7 @@ class WirtualnySportowiec:
         self.plec = plec
         self.tetno_spoczynkowe = float(tetno_spoczynkowe)
 
-        # Wyznaczenie tętna maksymalnego na podstawie wzoru Sally Edwards
+        # Wyznaczenie tętna maksymalnego wg Sally Edwards
         if plec == "Mężczyzna":
             self.max_tetno = 214 - (0.8 * wiek) - (0.11 * waga)
         else:
@@ -91,7 +91,7 @@ class WirtualnySportowiec:
 
         self.max_tetno = round(self.max_tetno)
 
-        # Obliczenie rezerwy tętna (Heart Rate Reserve - HRR) wg formuły Karvonena
+        # Obliczenie rezerwy tętna (HRR) wg Karvonena
         self.hrr = self.max_tetno - self.tetno_spoczynkowe
 
         wzrost_m = wzrost / 100.0
@@ -210,11 +210,11 @@ class AsystentAI:
             return f"{msg_prefix}Parametry optymalne w wyznaczonej strefie wysiłkowej. Decyzja modelu ML: UTRZYMAJ TEMPO.", "Success"
 
 
-# --- KONFIGURACJA GŁÓWNA INTERFEJSU STREAMLIT ---
+# Konfiguracja głowna interface STEAMLIT
 st.set_page_config(layout="wide", page_title="Dashboard Telemetrii Sportowej")
 st.title("System Monitorowania Obciążeń Treningowych w Czasie Rzeczywistym")
 
-# Inicjalizacja stanu sesji (Session State)
+# Inicjalizacja stanu sesji
 if 'live' not in st.session_state: st.session_state.live = False
 if 'pauza' not in st.session_state: st.session_state.pauza = False
 if 'poziom_wysilku' not in st.session_state: st.session_state.poziom_wysilku = 0
@@ -222,7 +222,7 @@ if 'sesja_zakonczona' not in st.session_state: st.session_state.sesja_zakonczona
 if 'hist_hr' not in st.session_state: st.session_state.hist_hr = []
 if 'hist_t' not in st.session_state: st.session_state.hist_t = []
 
-# --- PANEL BOCZNY (WPROWADZANIE PARAMETRÓW BIO) ---
+# Panel boczny
 st.sidebar.header("Konfiguracja Zawodnika")
 plec = st.sidebar.selectbox("Płeć", ["Mężczyzna", "Kobieta"])
 wiek = st.sidebar.number_input("Wiek", min_value=15, max_value=90, value=25)
@@ -268,7 +268,7 @@ if st.sidebar.button("Nowy trening (Reset)", use_container_width=True):
     if 'sportowiec' in st.session_state:
         del st.session_state.sportowiec
 
-# --- INSTANCJONOWANIE OBIEKTÓW DLA PODGLĄDU NA ŻYWO ---
+# Instancjonowanie obiektów do podgladu live
 if 'sportowiec' not in st.session_state:
     st.session_state.sportowiec = WirtualnySportowiec(wiek, waga, wzrost, plec, hr_rest)
 if 'asystent' not in st.session_state:
@@ -282,7 +282,7 @@ s.aktualizuj_parametry(wiek, waga, wzrost, plec, hr_rest)
 ai.aktualizuj_parametry(plan_min, s.bmi, s.hrr, s.tetno_spoczynkowe)
 
 
-# --- PANEL GŁÓWNY ---
+# Panel główny
 if st.session_state.live and not st.session_state.pauza:
     st.subheader("Panel Interwencji Trenerskiej")
     col_btn1, col_btn2, col_btn3 = st.columns(3)
@@ -341,7 +341,7 @@ if st.session_state.live:
     else:
         st.info(msg)
 
-# --- WIZUALIZACJA PLOTLY ---
+# Wizualizacja PLOTLY
 fig = go.Figure()
 teksty_etykiet = [""] * len(st.session_state.hist_hr)
 if teksty_etykiet:
@@ -356,7 +356,8 @@ fig.add_trace(go.Scatter(
     text=teksty_etykiet,
     textposition="middle right",
     textfont=dict(color="white", size=14, family="Arial Black"),
-    hovertemplate="<b>Czas:</b> %{x}s<br><b>Tętno:</b> %{y} BPM<extra></extra>"
+    cliponaxis=False,
+    hovertemplate="<b>Czas:</b> %{x}<br><b>Tętno:</b> %{y}<extra></extra>"
 ))
 
 # Wyznaczanie stref Karvonena
@@ -391,7 +392,7 @@ for granica in linie_graniczne:
 
 fig.update_layout(
     height=480,
-    margin=dict(l=70, r=70, t=30, b=60),
+    margin=dict(l=70, r=90, t=30, b=60),
     xaxis=dict(
         title="Czas trwania",
         ticksuffix=" sek",
@@ -420,7 +421,7 @@ fig.update_layout(
 
 st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
-# --- ARCHIWIZACJA I POBIERANIE RAPORTU HTML ---
+# Raport HTML
 if st.session_state.sesja_zakonczona:
     st.write("---")
     st.subheader("Eksport i Pobieranie Raportu Treningowego")
