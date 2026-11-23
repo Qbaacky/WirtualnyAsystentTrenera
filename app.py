@@ -172,7 +172,7 @@ class AsystentAI:
     def generuj_rekomendacje(self, hr: float, elapsed_s: int, tryb_pauzy: bool = False) -> Tuple[str, str, str]:
         """Zwraca krotkę: (komenda_glowna, opis_kontekstu, kolor_statusu)."""
         if tryb_pauzy:
-            return "AKTYWNA REGENERACJA", "Wstrzymano obciążenie. Trwa faza schładzania organizmu (Cool-down).", "#38bdf8"
+            return "AKTYWNA REGENERACJA", "Wstrzymano obciążenie. Trwa faza schładzania organizmu (Cool-down).", "#facc15"
 
         elapsed_min = elapsed_s / 60.0
         progress = (elapsed_min / self.target_duration) * 100
@@ -235,7 +235,7 @@ if 'sesja_zakonczona' not in st.session_state: st.session_state.sesja_zakonczona
 if 'hist_hr' not in st.session_state: st.session_state.hist_hr = []
 if 'hist_t' not in st.session_state: st.session_state.hist_t = []
 
-# --- PANEL BOCZNY: TYLKO PROFIL BIOMETRYCZNY ZAWODNIKA ---
+# --- PANEL BOCZNY: PROFIL BIOMETRYCZNY ZAWODNIKA ---
 st.sidebar.markdown("### Profil Zawodnika")
 plec = st.sidebar.selectbox("Płeć", ["Mężczyzna", "Kobieta"])
 wiek = st.sidebar.number_input("Wiek (lata)", min_value=15, max_value=90, value=25)
@@ -280,7 +280,7 @@ max_hr_achieved = max(st.session_state.hist_hr) if st.session_state.hist_hr else
 trimp = int((s.czas_treningu_s / 60) * (avg_hr / s.max_tetno) * 1.5) if s.max_tetno > 0 else 0
 procent_hrr_now = max(0, int(((hr_now - s.tetno_spoczynkowe) / s.hrr) * 100)) if s.hrr > 0 else 0
 
-# --- NAGŁÓWEK GŁÓWNY I PASEK POSTĘPU ---
+# --- NAGŁÓWEK GŁÓWNY I KOLOROWY PASEK POSTĘPU ---
 head_left, head_right = st.columns([3, 1])
 with head_left:
     st.markdown("## Wirtualny Asystent Trenera — Konsola Telemetryczna")
@@ -295,8 +295,24 @@ with head_right:
         status_txt = "STATUS: GOTOWOŚĆ DO STARTU"
     st.caption(f"**{status_txt}**")
 
-postep_sesji = min(1.0, s.czas_treningu_s / (plan_min * 60)) if plan_min > 0 else 0.0
-st.progress(postep_sesji)
+# Obliczenie procentu i koloru paska w zależności od stanu sesji
+procent_treningu = min(100.0, (s.czas_treningu_s / (plan_min * 60)) * 100) if plan_min > 0 else 0.0
+
+if st.session_state.sesja_zakonczona:
+    kolor_paska = "#ef4444"   # Czerwony po kliknięciu STOP
+elif st.session_state.pauza:
+    kolor_paska = "#facc15"   # Żółty podczas PAUZY
+else:
+    kolor_paska = "#00e5ff"   # Cyjan podczas pracy / gotowości
+
+st.markdown(f"""
+    <div style="width: 100%; background-color: #21262d; border-radius: 6px; height: 10px; overflow: hidden; margin-bottom: 6px;">
+        <div style="width: {procent_treningu}%; background-color: {kolor_paska}; height: 100%; transition: width 0.3s ease;"></div>
+    </div>
+    <div style="font-size: 13px; font-weight: 600; color: {kolor_paska}; margin-bottom: 14px;">
+        Postęp zaplanowanego treningu: {procent_treningu:.1f}%
+    </div>
+""", unsafe_allow_html=True)
 
 # --- GŁÓWNY UKŁAD DWUKOLUMNOWY ---
 col_wykres, col_kokpit = st.columns([2.2, 1.0], gap="large")
@@ -343,7 +359,9 @@ with col_kokpit:
             st.session_state.asystent = AsystentAI(plan_min, s_obj.bmi, s_obj.hrr, s_obj.tetno_spoczynkowe)
             st.rerun()
 
-        if c_pauza.button("PAUZA", use_container_width=True):
+        # Dynamiczna zmiana napisu przycisku PAUZA <-> WZNÓW
+        etykieta_pauza = "WZNÓW" if st.session_state.pauza else "PAUZA"
+        if c_pauza.button(etykieta_pauza, use_container_width=True):
             if st.session_state.live:
                 st.session_state.pauza = not st.session_state.pauza
                 st.rerun()
