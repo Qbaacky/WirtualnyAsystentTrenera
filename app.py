@@ -5,6 +5,7 @@ Uczelnia: WSB Merito
 Opis: Moduł symulacji telemetrii wysiłkowej oparty na modelach fizjologicznych oraz klasyfikatorze ML
 """
 
+import json
 import random
 import time
 from typing import Tuple
@@ -209,7 +210,6 @@ st.markdown("""
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
 
-        /* Czcionka dla elementów tekstowych (bez nadpisywania ikon systemowych) */
         body, p, h1, h2, h3, h4, label, input, button,
         [data-testid="stMarkdownContainer"],
         [data-testid="stMetricValue"],
@@ -227,13 +227,11 @@ st.markdown("""
             padding-bottom: 1.5rem;
         }
 
-        /* Bardzo ciemny szary dla lewego panelu bocznego */
         [data-testid="stSidebar"] {
             background-color: #18191c !important;
             border-right: 1px solid #2b2d33;
         }
 
-        /* Bardzo ciemny szary dla kontenerów (Sterowanie, Statystyki, Archiwizacja) */
         [data-testid="stVerticalBlockBorderWrapper"] {
             background-color: #18191c !important;
             border: 1px solid #2b2d33 !important;
@@ -270,15 +268,46 @@ if 'poziom_wysilku' not in st.session_state: st.session_state.poziom_wysilku = 0
 if 'sesja_zakonczona' not in st.session_state: st.session_state.sesja_zakonczona = False
 if 'hist_hr' not in st.session_state: st.session_state.hist_hr = []
 if 'hist_t' not in st.session_state: st.session_state.hist_t = []
+if 'ostatni_import' not in st.session_state: st.session_state.ostatni_import = None
 
-# --- PANEL BOCZNY: PROFIL BIOMETRYCZNY ZAWODNIKA ---
+# Domyślne wartości profilu zawodnika w pamięci sesji
+if 'cfg_plec' not in st.session_state: st.session_state.cfg_plec = "Mężczyzna"
+if 'cfg_wiek' not in st.session_state: st.session_state.cfg_wiek = 25
+if 'cfg_waga' not in st.session_state: st.session_state.cfg_waga = 78.0
+if 'cfg_wzrost' not in st.session_state: st.session_state.cfg_wzrost = 180.0
+if 'cfg_hr_rest' not in st.session_state: st.session_state.cfg_hr_rest = 55
+if 'cfg_plan_min' not in st.session_state: st.session_state.cfg_plan_min = 30
+
+# --- PANEL BOCZNY: IMPORT, PROFIL BIOMETRYCZNY I EKSPORT ---
 st.sidebar.markdown("### Profil Zawodnika")
-plec = st.sidebar.selectbox("Płeć", ["Mężczyzna", "Kobieta"])
-wiek = st.sidebar.number_input("Wiek (lata)", min_value=15, max_value=90, value=25)
-waga = st.sidebar.number_input("Masa ciała (kg)", value=78.0, step=0.5)
-wzrost = st.sidebar.number_input("Wzrost (cm)", value=180.0, step=0.5)
-hr_rest = st.sidebar.number_input("Tętno spoczynkowe (BPM)", min_value=35, max_value=110, value=55)
-plan_min = st.sidebar.slider("Planowany czas sesji (min)", 5, 120, 30)
+
+with st.sidebar.expander("Wczytaj profil z pliku (.json)"):
+    wgrany_plik = st.file_uploader("Wybierz plik JSON", type=["json"], label_visibility="collapsed")
+    if wgrany_plik is not None:
+        id_pliku = f"{wgrany_plik.name}_{wgrany_plik.size}"
+        if st.session_state.ostatni_import != id_pliku:
+            try:
+                dane_profilu = json.load(wgrany_plik)
+                if dane_profilu.get("plec") in ["Mężczyzna", "Kobieta"]:
+                    st.session_state.cfg_plec = dane_profilu["plec"]
+                st.session_state.cfg_wiek = max(15, min(90, int(dane_profilu.get("wiek", 25))))
+                st.session_state.cfg_waga = max(30.0, min(250.0, float(dane_profilu.get("waga", 78.0))))
+                st.session_state.cfg_wzrost = max(100.0, min(250.0, float(dane_profilu.get("wzrost", 180.0))))
+                st.session_state.cfg_hr_rest = max(35, min(110, int(dane_profilu.get("hr_rest", 55))))
+                st.session_state.cfg_plan_min = max(5, min(120, int(dane_profilu.get("plan_min", 30))))
+                st.session_state.ostatni_import = id_pliku
+                st.success("Wczytano ustawienia zawodnika.")
+            except Exception:
+                st.error("Nieprawidłowy format pliku JSON.")
+    else:
+        st.session_state.ostatni_import = None
+
+plec = st.sidebar.selectbox("Płeć", ["Mężczyzna", "Kobieta"], key="cfg_plec")
+wiek = st.sidebar.number_input("Wiek (lata)", min_value=15, max_value=90, step=1, key="cfg_wiek")
+waga = st.sidebar.number_input("Masa ciała (kg)", min_value=30.0, max_value=250.0, step=0.5, key="cfg_waga")
+wzrost = st.sidebar.number_input("Wzrost (cm)", min_value=100.0, max_value=250.0, step=0.5, key="cfg_wzrost")
+hr_rest = st.sidebar.number_input("Tętno spoczynkowe (BPM)", min_value=35, max_value=110, step=1, key="cfg_hr_rest")
+plan_min = st.sidebar.slider("Planowany czas sesji (min)", min_value=5, max_value=120, key="cfg_plan_min")
 
 # Instancjonowanie obiektów
 if 'sportowiec' not in st.session_state:
@@ -302,6 +331,27 @@ st.sidebar.markdown("### Parametry Wyliczone")
 st.sidebar.write(f"**Tętno maksymalne:** {s.max_tetno} BPM")
 st.sidebar.write(f"**Rezerwa tętna (HRR):** {int(s.hrr)} BPM")
 st.sidebar.write(f"**Wskaźnik BMI:** {s.bmi:.1f} kg/m²")
+
+# Przygotowanie pliku JSON do eksportu aktualnego profilu
+profil_do_zapisu = json.dumps(
+    {
+        "plec": plec,
+        "wiek": wiek,
+        "waga": waga,
+        "wzrost": wzrost,
+        "hr_rest": hr_rest,
+        "plan_min": plan_min
+    },
+    ensure_ascii=False,
+    indent=4
+)
+st.sidebar.download_button(
+    label="Zapisz profil (.json)",
+    data=profil_do_zapisu,
+    file_name="profil_zawodnika.json",
+    mime="application/json",
+    use_container_width=True
+)
 
 # --- AKTUALIZACJA KROKU SYMULACJI ---
 if st.session_state.live:
@@ -331,7 +381,6 @@ with head_right:
         status_txt = "STATUS: GOTOWOŚĆ DO STARTU"
     st.caption(f"**{status_txt}**")
 
-# Pasek postępu bazuje na czasie aktywnego treningu (zatrzymuje się podczas pauzy)
 procent_treningu = min(100.0, (s.czas_treningu_s / (plan_min * 60)) * 100) if plan_min > 0 else 0.0
 
 if st.session_state.sesja_zakonczona:
@@ -379,7 +428,7 @@ with col_kokpit:
         </div>
     """, unsafe_allow_html=True)
 
-    # 3. Panel sterowania sesją i interwencji trenerskiej (bardzo ciemny szary)
+    # 3. Panel sterowania sesją i interwencji trenerskiej
     with st.container(border=True):
         st.markdown("**Sterowanie sesją**")
         c_start, c_pauza, c_stop = st.columns(3)
@@ -434,7 +483,7 @@ with col_kokpit:
             etykiety_wysilku = ["0: Spoczynek", "1: Lekki trucht", "2: Bieg optymalny", "3: Mocny bieg", "4: Maksymalny sprint"]
             st.caption(f"Zadany poziom: **{etykiety_wysilku[st.session_state.poziom_wysilku]}**")
 
-    # 4. Siatka 2x2 statystyk pomocniczych (bardzo ciemny szary)
+    # 4. Siatka 2x2 statystyk pomocniczych
     with st.container(border=True):
         r1c1, r1c2 = st.columns(2)
         r1c1.metric("Tętno średnie", f"{avg_hr} BPM")
@@ -445,7 +494,7 @@ with col_kokpit:
         r2c2.metric("Zmęczenie kumul.", f"{s.zmeczenie_kumulatywne:.2f}")
 
 with col_wykres:
-    # --- WIZUALIZACJA PLOTLY (SZARA LINIA I SZARA ETYKIETA BPM) ---
+    # --- WIZUALIZACJA PLOTLY ---
     fig = go.Figure()
     teksty_etykiet = [""] * len(st.session_state.hist_hr)
     if teksty_etykiet:
