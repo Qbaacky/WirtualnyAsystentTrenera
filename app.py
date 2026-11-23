@@ -58,6 +58,7 @@ class WirtualnySportowiec:
 
     def __init__(self, wiek: int, waga: float, wzrost: float, plec: str, tetno_spoczynkowe: float) -> None:
         self.czas_treningu_s: int = 0
+        self.czas_calkowity_s: int = 0
         self.zmeczenie_kumulatywne: float = 0.0
         self.spalone_kcal: float = 0.0
         self.aktualne_tetno: float = float(tetno_spoczynkowe)
@@ -95,7 +96,9 @@ class WirtualnySportowiec:
 
     def aktualizuj_stan(self, poziom_wysilku: int, tryb_pauzy: bool = False) -> int:
         """Wylicza kolejny krok czasowy (takt 1 sekundy) stanu fizjologicznego."""
-        self.czas_treningu_s += 1
+        self.czas_calkowity_s += 1
+        if not tryb_pauzy:
+            self.czas_treningu_s += 1
 
         if tryb_pauzy:
             docelowe_hr = self.tetno_spoczynkowe
@@ -200,30 +203,63 @@ class AsystentAI:
 
 
 # --- KONFIGURACJA STRONY I STYLÓW INTERFEJSU ---
-st.set_page_config(layout="wide", page_title="TelemetryLab | Symulator Wysiłku")
+st.set_page_config(layout="wide", page_title="Wirtualny Asystent Trenera - Symulator")
 
 st.markdown("""
     <style>
-        .block-container { padding-top: 1.5rem; padding-bottom: 1.5rem; }
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap');
+
+        /* Czcionka dla elementów tekstowych (bez nadpisywania ikon systemowych) */
+        body, p, h1, h2, h3, h4, label, input, button,
+        [data-testid="stMarkdownContainer"],
+        [data-testid="stMetricValue"],
+        [data-testid="stMetricLabel"],
+        [data-testid="stCaptionContainer"] {
+            font-family: 'Plus Jakarta Sans', sans-serif !important;
+        }
+
+        .stApp {
+            background-color: #0e0f12;
+        }
+
+        .block-container {
+            padding-top: 1.4rem;
+            padding-bottom: 1.5rem;
+        }
+
+        /* Bardzo ciemny szary dla lewego panelu bocznego */
+        [data-testid="stSidebar"] {
+            background-color: #18191c !important;
+            border-right: 1px solid #2b2d33;
+        }
+
+        /* Bardzo ciemny szary dla kontenerów (Sterowanie, Statystyki, Archiwizacja) */
+        [data-testid="stVerticalBlockBorderWrapper"] {
+            background-color: #18191c !important;
+            border: 1px solid #2b2d33 !important;
+            border-radius: 10px !important;
+        }
+
         .hr-card {
-            background-color: #161b22;
-            border: 1px solid #30363d;
+            background-color: #18191c;
+            border: 1px solid #2b2d33;
             border-radius: 10px;
             padding: 16px 20px;
             margin-bottom: 12px;
         }
-        .hr-label { font-size: 12px; color: #8b949e; text-transform: uppercase; letter-spacing: 1px; }
-        .hr-value { font-size: 42px; font-weight: 700; color: #00e5ff; line-height: 1.1; margin: 4px 0; }
-        .hr-sub { font-size: 13px; color: #c9d1d9; }
+        .hr-label { font-size: 11px; color: #9ca3af; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; }
+        .hr-value { font-size: 42px; font-weight: 700; color: #e5e7eb; line-height: 1.1; margin: 4px 0; }
+        .hr-sub { font-size: 13px; color: #d1d5db; }
+
         .ai-box {
-            background-color: #161b22;
-            border: 1px solid #30363d;
+            background-color: #18191c;
+            border: 1px solid #2b2d33;
             border-radius: 10px;
             padding: 14px 18px;
             margin-bottom: 14px;
         }
         .ai-cmd { font-size: 20px; font-weight: 700; margin: 2px 0 4px 0; }
-        .ai-desc { font-size: 12px; color: #8b949e; line-height: 1.4; }
+        .ai-desc { font-size: 12px; color: #9ca3af; line-height: 1.4; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -271,7 +307,7 @@ st.sidebar.write(f"**Wskaźnik BMI:** {s.bmi:.1f} kg/m²")
 if st.session_state.live:
     hr_now = s.aktualizuj_stan(st.session_state.poziom_wysilku, tryb_pauzy=st.session_state.pauza)
     st.session_state.hist_hr.append(hr_now)
-    st.session_state.hist_t.append(s.czas_treningu_s)
+    st.session_state.hist_t.append(s.czas_calkowity_s)
 else:
     hr_now = st.session_state.hist_hr[-1] if st.session_state.hist_hr else int(hr_rest)
 
@@ -283,7 +319,7 @@ procent_hrr_now = max(0, int(((hr_now - s.tetno_spoczynkowe) / s.hrr) * 100)) if
 # --- NAGŁÓWEK GŁÓWNY I KOLOROWY PASEK POSTĘPU ---
 head_left, head_right = st.columns([3, 1])
 with head_left:
-    st.markdown("## Wirtualny Asystent Trenera — Konsola Telemetryczna")
+    st.markdown("## Wirtualny Asystent Trenera")
 with head_right:
     if st.session_state.live and not st.session_state.pauza:
         status_txt = "STATUS: REJESTRACJA AKTYWNA"
@@ -295,7 +331,7 @@ with head_right:
         status_txt = "STATUS: GOTOWOŚĆ DO STARTU"
     st.caption(f"**{status_txt}**")
 
-# Obliczenie procentu i koloru paska w zależności od stanu sesji
+# Pasek postępu bazuje na czasie aktywnego treningu (zatrzymuje się podczas pauzy)
 procent_treningu = min(100.0, (s.czas_treningu_s / (plan_min * 60)) * 100) if plan_min > 0 else 0.0
 
 if st.session_state.sesja_zakonczona:
@@ -306,7 +342,7 @@ else:
     kolor_paska = "#00e5ff"   # Cyjan podczas pracy / gotowości
 
 st.markdown(f"""
-    <div style="width: 100%; background-color: #21262d; border-radius: 6px; height: 10px; overflow: hidden; margin-bottom: 6px;">
+    <div style="width: 100%; background-color: #1f2228; border-radius: 6px; height: 10px; overflow: hidden; margin-bottom: 6px;">
         <div style="width: {procent_treningu}%; background-color: {kolor_paska}; height: 100%; transition: width 0.3s ease;"></div>
     </div>
     <div style="font-size: 13px; font-weight: 600; color: {kolor_paska}; margin-bottom: 14px;">
@@ -322,7 +358,7 @@ with col_kokpit:
     st.markdown(f"""
         <div class="hr-card">
             <div class="hr-label">Aktualna częstość skurczów serca</div>
-            <div class="hr-value">{hr_now} <span style="font-size: 18px; color: #8b949e;">BPM</span></div>
+            <div class="hr-value">{hr_now} <span style="font-size: 18px; color: #9ca3af;">BPM</span></div>
             <div class="hr-sub">Obciążenie układu krążenia: <b>{procent_hrr_now}% HRR</b> &nbsp;|&nbsp; Czas: <b>{s.czas_treningu_s // 60}:{s.czas_treningu_s % 60:02d} / {plan_min}:00</b></div>
         </div>
     """, unsafe_allow_html=True)
@@ -333,7 +369,7 @@ with col_kokpit:
     else:
         komenda = "OCZEKIWANIE NA START"
         opis_ml = "Dostosuj parametry zawodnika w panelu bocznym i uruchom sesję, aby aktywować klasyfikator DecisionTree."
-        kolor_ramki = "#8b949e"
+        kolor_ramki = "#9ca3af"
 
     st.markdown(f"""
         <div class="ai-box" style="border-left: 5px solid {kolor_ramki};">
@@ -343,7 +379,7 @@ with col_kokpit:
         </div>
     """, unsafe_allow_html=True)
 
-    # 3. Panel sterowania sesją i interwencji trenerskiej
+    # 3. Panel sterowania sesją i interwencji trenerskiej (bardzo ciemny szary)
     with st.container(border=True):
         st.markdown("**Sterowanie sesją**")
         c_start, c_pauza, c_stop = st.columns(3)
@@ -359,7 +395,6 @@ with col_kokpit:
             st.session_state.asystent = AsystentAI(plan_min, s_obj.bmi, s_obj.hrr, s_obj.tetno_spoczynkowe)
             st.rerun()
 
-        # Dynamiczna zmiana napisu przycisku PAUZA <-> WZNÓW
         etykieta_pauza = "WZNÓW" if st.session_state.pauza else "PAUZA"
         if c_pauza.button(etykieta_pauza, use_container_width=True):
             if st.session_state.live:
@@ -399,7 +434,7 @@ with col_kokpit:
             etykiety_wysilku = ["0: Spoczynek", "1: Lekki trucht", "2: Bieg optymalny", "3: Mocny bieg", "4: Maksymalny sprint"]
             st.caption(f"Zadany poziom: **{etykiety_wysilku[st.session_state.poziom_wysilku]}**")
 
-    # 4. Siatka 2x2 statystyk pomocniczych
+    # 4. Siatka 2x2 statystyk pomocniczych (bardzo ciemny szary)
     with st.container(border=True):
         r1c1, r1c2 = st.columns(2)
         r1c1.metric("Tętno średnie", f"{avg_hr} BPM")
@@ -410,7 +445,7 @@ with col_kokpit:
         r2c2.metric("Zmęczenie kumul.", f"{s.zmeczenie_kumulatywne:.2f}")
 
 with col_wykres:
-    # --- WIZUALIZACJA PLOTLY ---
+    # --- WIZUALIZACJA PLOTLY (SZARA LINIA I SZARA ETYKIETA BPM) ---
     fig = go.Figure()
     teksty_etykiet = [""] * len(st.session_state.hist_hr)
     if teksty_etykiet:
@@ -421,10 +456,10 @@ with col_wykres:
         y=st.session_state.hist_hr,
         mode='lines+text',
         name='Tętno zawodnika',
-        line=dict(color='#00e5ff', width=3),
+        line=dict(color='#9ca3af', width=3),
         text=teksty_etykiet,
         textposition="middle right",
-        textfont=dict(color="#00e5ff", size=13, family="Arial Black"),
+        textfont=dict(color="#9ca3af", size=13, family="Plus Jakarta Sans, sans-serif"),
         cliponaxis=False,
         hovertemplate="<b>Czas:</b> %{x}<br><b>Tętno:</b> %{y}<extra></extra>"
     ))
@@ -452,7 +487,7 @@ with col_wykres:
                 layer="below", line_width=0,
                 annotation_text=label,
                 annotation_position="top left",
-                annotation_font=dict(size=11, color="rgba(255,255,255,0.75)")
+                annotation_font=dict(size=11, color="rgba(255,255,255,0.75)", family="Plus Jakarta Sans, sans-serif")
             )
 
     for granica in [k_60, k_70, k_80, k_90]:
@@ -467,12 +502,13 @@ with col_wykres:
     fig.update_layout(
         height=540,
         margin=dict(l=60, r=85, t=20, b=50),
+        font=dict(family="Plus Jakarta Sans, sans-serif"),
         xaxis=dict(
-            title="Czas trwania sesji",
+            title="Czas rejestracji",
             ticksuffix=" sek",
             showticklabels=True,
-            tickfont=dict(color="#c9d1d9", size=12),
-            title_font=dict(color="#8b949e", size=12),
+            tickfont=dict(color="#9ca3af", size=12),
+            title_font=dict(color="#9ca3af", size=12),
             gridcolor="rgba(255, 255, 255, 0.08)"
         ),
         yaxis=dict(
@@ -480,84 +516,86 @@ with col_wykres:
             title="Częstość skurczów serca",
             ticksuffix=" BPM",
             showticklabels=True,
-            tickfont=dict(color="#c9d1d9", size=12),
-            title_font=dict(color="#8b949e", size=12),
+            tickfont=dict(color="#9ca3af", size=12),
+            title_font=dict(color="#9ca3af", size=12),
             gridcolor="rgba(255, 255, 255, 0.08)"
         ),
         paper_bgcolor='rgba(0,0,0,0)',
-        plot_bgcolor='#0d1117',
+        plot_bgcolor='#131519',
         hoverlabel=dict(
-            bgcolor="#161b22",
+            bgcolor="#18191c",
             font_size=13,
-            font_family="Arial"
+            font_family="Plus Jakarta Sans, sans-serif"
         )
     )
 
     st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
 
-    # --- EKSPORT RAPORTU PO ZAKOŃCZENIU SESJI ---
+    # --- KOMPAKTOWA ARCHIWIZACJA I EKSPORT RAPORTU PO ZAKOŃCZENIU SESJI ---
     if st.session_state.sesja_zakonczona:
-        with st.container(border=True):
-            st.markdown("**Archiwizacja i eksport sesji treningowej**")
-            with st.form(key="formularz_pobierania"):
-                f_col1, f_col2 = st.columns([2, 1])
-                nazwa_treningu = f_col1.text_input("Nazwa pliku raportu:", value="Raport_Treningowy", label_visibility="collapsed")
-                zatwierdzono = f_col2.form_submit_button("Generuj raport HTML", use_container_width=True)
+        exp_col, _ = st.columns([1.15, 1.05])
+        with exp_col:
+            with st.container(border=True):
+                st.markdown("**Archiwizacja i eksport sesji treningowej**")
+                with st.form(key="formularz_pobierania"):
+                    f_col1, f_col2 = st.columns([1.3, 1.0])
+                    nazwa_treningu = f_col1.text_input("Nazwa pliku raportu:", value="Raport_Treningowy", label_visibility="collapsed")
+                    zatwierdzono = f_col2.form_submit_button("Generuj raport HTML", use_container_width=True)
 
-            if zatwierdzono:
-                czysta_nazwa = nazwa_treningu.strip().replace(" ", "_") or "Raport_Treningowy"
-                plik_nazwa = f"{czysta_nazwa}.html"
-                wykres_html = fig.to_html(full_html=False, include_plotlyjs='cdn')
+                if zatwierdzono:
+                    czysta_nazwa = nazwa_treningu.strip().replace(" ", "_") or "Raport_Treningowy"
+                    plik_nazwa = f"{czysta_nazwa}.html"
+                    wykres_html = fig.to_html(full_html=False, include_plotlyjs='cdn')
 
-                raport_html_content = f"""
-                <!DOCTYPE html>
-                <html>
-                <head>
-                    <meta charset="utf-8">
-                    <title>Raport Telemetryczny - {czysta_nazwa}</title>
-                    <style>
-                        body {{ font-family: 'Segoe UI', Arial, sans-serif; margin: 40px; background-color: #0d1117; color: #c9d1d9; }}
-                        .container {{ max-width: 1200px; margin: 0 auto; }}
-                        .header {{ border-bottom: 1px solid #30363d; padding-bottom: 20px; margin-bottom: 30px; }}
-                        .header h1 {{ margin: 0; color: #00e5ff; font-size: 26px; }}
-                        .header p {{ color: #8b949e; margin: 6px 0 0 0; }}
-                        .stats-grid {{ display: grid; grid-template-columns: repeat(6, 1fr); gap: 15px; margin-bottom: 30px; }}
-                        .stat-card {{ background-color: #161b22; border: 1px solid #30363d; padding: 15px; border-radius: 8px; text-align: center; }}
-                        .stat-label {{ font-size: 11px; color: #8b949e; text-transform: uppercase; margin-bottom: 8px; }}
-                        .stat-value {{ font-size: 22px; font-weight: bold; color: #ffffff; margin: 0; }}
-                        .chart-container {{ background-color: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 20px; }}
-                    </style>
-                </head>
-                <body>
-                    <div class="container">
-                        <div class="header">
-                            <h1>Raport z Telemetrii Wysiłkowej: {czysta_nazwa}</h1>
-                            <p>Wygenerowano przez Wirtualny Asystent Trenera (Model Karvonena, Sally Edwards &amp; DecisionTree ML)</p>
+                    raport_html_content = f"""
+                    <!DOCTYPE html>
+                    <html>
+                    <head>
+                        <meta charset="utf-8">
+                        <title>Raport Telemetryczny - {czysta_nazwa}</title>
+                        <style>
+                            body {{ font-family: 'Segoe UI', Arial, sans-serif; margin: 40px; background-color: #0e0f12; color: #e5e7eb; }}
+                            .container {{ max-width: 1200px; margin: 0 auto; }}
+                            .header {{ border-bottom: 1px solid #2b2d33; padding-bottom: 20px; margin-bottom: 30px; }}
+                            .header h1 {{ margin: 0; color: #e5e7eb; font-size: 26px; }}
+                            .header p {{ color: #9ca3af; margin: 6px 0 0 0; }}
+                            .stats-grid {{ display: grid; grid-template-columns: repeat(6, 1fr); gap: 15px; margin-bottom: 30px; }}
+                            .stat-card {{ background-color: #18191c; border: 1px solid #2b2d33; padding: 15px; border-radius: 8px; text-align: center; }}
+                            .stat-label {{ font-size: 11px; color: #9ca3af; text-transform: uppercase; margin-bottom: 8px; }}
+                            .stat-value {{ font-size: 22px; font-weight: bold; color: #ffffff; margin: 0; }}
+                            .chart-container {{ background-color: #18191c; border: 1px solid #2b2d33; border-radius: 8px; padding: 20px; }}
+                        </style>
+                    </head>
+                    <body>
+                        <div class="container">
+                            <div class="header">
+                                <h1>Raport z Telemetrii Wysiłkowej: {czysta_nazwa}</h1>
+                                <p>Wygenerowano przez Wirtualny Asystent Trenera (Model Karvonena, Sally Edwards &amp; DecisionTree ML)</p>
+                            </div>
+                            <div class="stats-grid">
+                                <div class="stat-card"><div class="stat-label">Czas Sesji</div><div class="stat-value">{s.czas_treningu_s // 60}:{s.czas_treningu_s % 60:02d}</div></div>
+                                <div class="stat-card"><div class="stat-label">Tętno AVG</div><div class="stat-value">{avg_hr} BPM</div></div>
+                                <div class="stat-card"><div class="stat-label">Tętno MAX</div><div class="stat-value">{max_hr_achieved} BPM</div></div>
+                                <div class="stat-card"><div class="stat-label">Spalone Kalorie</div><div class="stat-value">{int(s.spalone_kcal)} kcal</div></div>
+                                <div class="stat-card"><div class="stat-label">Obciążenie TRIMP</div><div class="stat-value">{trimp}</div></div>
+                                <div class="stat-card"><div class="stat-label">Wskaźnik BMI</div><div class="stat-value">{s.bmi:.1f}</div></div>
+                            </div>
+                            <div class="chart-container">{wykres_html}</div>
                         </div>
-                        <div class="stats-grid">
-                            <div class="stat-card"><div class="stat-label">Czas Sesji</div><div class="stat-value">{s.czas_treningu_s // 60}:{s.czas_treningu_s % 60:02d}</div></div>
-                            <div class="stat-card"><div class="stat-label">Tętno AVG</div><div class="stat-value">{avg_hr} BPM</div></div>
-                            <div class="stat-card"><div class="stat-label">Tętno MAX</div><div class="stat-value">{max_hr_achieved} BPM</div></div>
-                            <div class="stat-card"><div class="stat-label">Spalone Kalorie</div><div class="stat-value">{int(s.spalone_kcal)} kcal</div></div>
-                            <div class="stat-card"><div class="stat-label">Obciążenie TRIMP</div><div class="stat-value">{trimp}</div></div>
-                            <div class="stat-card"><div class="stat-label">Wskaźnik BMI</div><div class="stat-value">{s.bmi:.1f}</div></div>
-                        </div>
-                        <div class="chart-container">{wykres_html}</div>
-                    </div>
-                </body>
-                </html>
-                """
-                st.session_state.pobierz_dane = raport_html_content
-                st.session_state.pobierz_nazwa = plik_nazwa
+                    </body>
+                    </html>
+                    """
+                    st.session_state.pobierz_dane = raport_html_content
+                    st.session_state.pobierz_nazwa = plik_nazwa
 
-            if 'pobierz_dane' in st.session_state and st.session_state.pobierz_dane:
-                st.download_button(
-                    label=f"Pobierz gotowy plik: {st.session_state.pobierz_nazwa}",
-                    data=st.session_state.pobierz_dane,
-                    file_name=st.session_state.pobierz_nazwa,
-                    mime="text/html",
-                    use_container_width=True
-                )
+                if 'pobierz_dane' in st.session_state and st.session_state.pobierz_dane:
+                    st.download_button(
+                        label=f"Pobierz plik: {st.session_state.pobierz_nazwa}",
+                        data=st.session_state.pobierz_dane,
+                        file_name=st.session_state.pobierz_nazwa,
+                        mime="text/html",
+                        use_container_width=True
+                    )
 
 if st.session_state.live:
     time.sleep(1)
